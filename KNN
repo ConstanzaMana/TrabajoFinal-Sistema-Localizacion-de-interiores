@@ -1,0 +1,185 @@
+from sklearn.neighbors import KNeighborsRegressor
+from sklearn.metrics import mean_squared_error
+from sklearn.model_selection import train_test_split
+import numpy as np
+import sys
+!{sys.executable} -m pip install pandas openpyxl matplotlib
+import pandas as pd
+from Funciones import *
+import matplotlib.pyplot as plt
+ 
+#Balizas
+balizas = {
+    1: (34, 14),
+    2: (42, 9),
+    3: (31, 5),
+    4: (17, 5),
+    5: (15, 15),
+    6: (34, 28),
+    7: (33, 34),
+}
+ 
+#Datos del plano
+filas = 50
+columnas = 65
+anchoPlano = 77.9265 #en metros
+altoPlano = 40.65 #en metros
+ 
+#Convertir la posición en la grilla de las balizas a la ubicación real en el plano
+balizasReales = convertirBalizas(balizas, columnas, filas, anchoPlano, altoPlano)
+print("Las coordenadas reales de las balizas son: ")
+for id, (x,y) in balizasReales.items():
+    print(f"Baliza {id}: ({x:.2f}, {y:.2f})")
+ 
+#Graficar la posición de las balizas en un plano
+graficarBalizas(balizasReales)
+ 
+#Carga de datos
+df=pd.read_excel("C:\\Users\\Windows11\\Desktop\\Cami\\Facultad\\Tesis\\lecturas_ble_Drive.xlsx",sheet_name="DatosReducidosCami")
+print(df.head())  # Muestra las primeras filas
+print(df.columns)  # Lista los nombres de columna
+ 
+df1=pd.read_excel("C:\\Users\\Windows11\\Desktop\\Cami\\Facultad\\Tesis\\lecturas_ble_Drive.xlsx",sheet_name="DatosReducidosConi")
+ 
+#Limpieza de datos
+df = df.dropna(subset=["Fila", "Columna", "AVERAGE de RSSI"])
+df["Fila"] = pd.to_numeric(df["Fila"], errors="coerce")
+df["Columna"] = pd.to_numeric(df["Columna"], errors="coerce")
+df["AVERAGE de RSSI"] = pd.to_numeric(df["AVERAGE de RSSI"], errors="coerce")
+df["Minor"] = df["Minor"].astype(int)
+ 
+df1 = df1.dropna(subset=["Fila", "Columna", "AVERAGE de RSSI"])
+df1["Fila"] = pd.to_numeric(df1["Fila"], errors="coerce")
+df1["Columna"] = pd.to_numeric(df1["Columna"], errors="coerce")
+df1["AVERAGE de RSSI"] = pd.to_numeric(df1["AVERAGE de RSSI"], errors="coerce")
+df1["Minor"] = df1["Minor"].astype(int)
+#Reorganización de datos
+Agrupa los datos por las columnas "Fila" y "Columna" → cada posición física única en la grilla.
+Distribuye los valores de "AVERAGE de RSSI" en columnas separadas según el valor de "Minor" (el ID de cada baliza).
+Cada celda del nuevo DataFrame contiene el RSSI promedio de la baliza (Minor) en esa posición (Fila, Columna).
+reset_index() convierte el índice de fila/columna nuevamente en columnas normales.
+ 
+df_pivot = df.pivot_table(index=["Fila", "Columna"],
+                          columns="Minor",
+                          values="AVERAGE de RSSI").reset_index()
+print(df_pivot.head())  # Muestra las primeras filas
+print(df_pivot.columns)  # Lista los nombres de columna
+ 
+df1_pivot = df1.pivot_table(index=["Fila", "Columna"],
+                          columns="Minor",
+                          values="AVERAGE de RSSI").reset_index()
+#Filtrado de datos
+#Un valor -200 representa señal no detectada, en vez de tener Nan.
+df_pivot.fillna(-200, inplace=True)  
+X = df_pivot.drop(columns=["Fila", "Columna"]).values
+ 
+df1_pivot.fillna(-200, inplace=True)  
+X1 = df1_pivot.drop(columns=["Fila", "Columna"]).values
+ 
+#Dividir los datos en conjuntos de entrenamiento y prueba
+y = posicionesEnMetros(df_pivot, columnas, filas, anchoPlano, altoPlano)
+X_train, X_test, y_train, y_test = train_test_split(X,y,test_size=0.3,random_state=42)
+ 
+y1 = posicionesEnMetros(df1_pivot, columnas, filas, anchoPlano, altoPlano)
+X1_train, X1_test, y1_train, y1_test = train_test_split(X1,y1,test_size=0.3,random_state=42)
+ 
+#Modelo KNN
+knn = KNeighborsRegressor(n_neighbors=5, weights='uniform')
+#Calcula para cada muestra de prueba la distancia euclidiana
+#entre la posición real (y_test) y la estimada (y_pred) y luego
+#saca el promedio de todos esos errores
+knn.fit(X_train, y_train)
+# --- EVALUACIÓN DEL MODELO KNN ---
+print("MODELO KNN\n")
+y_pred = knn.predict(X_test)
+y_pred_real = scaler_y.inverse_transform(y_pred)
+y_real = scaler_y.inverse_transform(y_test)
+ 
+mostrarError("KNN",y_pred_real,y_real,y_test_real)
+
+ 
+ 
+Funciones
+ 
+import matplotlib.pyplot as plt
+ 
+def convertirBalizas(balizas, columnas, filas, anchoPlano, altoPlano):
+    tamCeldaX=anchoPlano/columnas #1.1988
+    tamCeldaY=altoPlano/filas #0.813
+    balizasReales = {}
+    for id, (fila, columna) in balizas.items():
+        x_real = columna * tamCeldaX
+        y_real = fila * tamCeldaY
+        balizasReales[id] = (x_real, y_real)
+   
+    return balizasReales
+ 
+def graficarBalizas(balizasReales):
+    # Extraer para graficar
+    ids = list(balizasReales.keys())
+    xs = [balizasReales[i][0] for i in ids]
+    ys = [balizasReales[i][1] for i in ids]
+ 
+    # Graficar
+    plt.figure(figsize=(8, 6))
+    plt.scatter(xs, ys, c='blue', s=100, label='Balizas (en metros)')
+    for i, (x, y) in zip(ids, zip(xs, ys)):
+        plt.text(x + 0.1, y + 0.1, f'ID {i}', fontsize=9)
+ 
+    plt.grid(True)
+    plt.xlabel("X (metros)")
+    plt.ylabel("Y (metros)")
+    plt.title("Posiciones de las balizas en metros")
+    plt.legend()
+    plt.show()
+ 
+def posicionesEnMetros(df, columnas, filas, anchoPlano, altoPlano):
+    tamCeldaX=anchoPlano/columnas #1.1988
+    tamCeldaY=altoPlano/filas #0.813
+    posiciones = []
+    for i in df.itertuples():
+        x_real = i.Columna * tamCeldaX
+        y_real = i.Fila * tamCeldaY
+        posiciones.append([x_real, y_real])
+   
+    return posiciones
+ def posicionesEnMetros(df, columnas, filas, anchoPlano, altoPlano):
+    tamCeldaX=anchoPlano/columnas #1.1988
+    tamCeldaY=altoPlano/filas #0.813
+    posiciones = []
+    for i in df.itertuples():
+        x_real = i.Columna * tamCeldaX
+        y_real = i.Fila * tamCeldaY
+        posiciones.append([x_real, y_real])
+   
+    return posiciones
+ 
+def ajustar_a_pasillo(posicion, pasillos):
+    """
+    posicion: tu predicción (x, y) en coordenadas reales o del plano
+    pasillos: lista de tuplas válidas
+    """
+    x_pred, y_pred = posicion
+    pasillos = np.array(pasillos)
+ 
+    # Calcular distancias euclídeas a cada punto válido en pasillos
+    distancias = np.sqrt((pasillos[:,0] - x_pred)**2 + (pasillos[:,1] - y_pred)**2)
+ 
+    # Elegir el punto más cercano
+    indice_mas_cercano = np.argmin(distancias)
+    return tuple(pasillos[indice_mas_cercano])
+ 
+def mostrarError(nombreModelo,y_pred_real,y_real,y_test_real):
+    # Mostrar los primeros 10 resultados redondeados
+    print("Comparación de las primeras 10 predicciones:")
+    for i in range(10):
+        pred_x, pred_y = y_pred_real[i]
+        real_x, real_y = y_real[i]
+        # Se redondea y convierte a entero para la visualización
+        print(f"Predicho: ({int(round(pred_x))}, {int(round(pred_y))}) | Real: ({int(round(real_x))}, {int(round(real_y))})")
+ 
+    # Cálculo de errores en metros
+    errores = np.sqrt(np.sum((y_test_real - y_pred_real)**2, axis=1))
+    print(f"Error promedio de localización con {nombreModelo}: {np.mean(errores):.2f} metros")
+    print(f"Error máximo con {nombreModelo}: {np.max(errores):.2f} metros")
+
