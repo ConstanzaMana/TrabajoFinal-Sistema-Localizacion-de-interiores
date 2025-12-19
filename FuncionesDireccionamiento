@@ -1,0 +1,148 @@
+import numpy as np
+from heapq import heappop, heappush
+import matplotlib.pyplot as plt
+import time
+import random
+
+def dijkstra(inicio, destino, filas, columnas, vecinos_dict):
+    abiertos = []
+    heappush(abiertos, (0, inicio, [inicio]))
+    visitados = np.zeros((filas, columnas), dtype=bool)
+    nodos_visitados_count = 0  # <--- Contador
+    
+    while abiertos:
+        costo, actual, camino = heappop(abiertos)
+        nodos_visitados_count += 1  # <--- Incremento del contador
+        
+        if visitados[actual[0], actual[1]]:
+            continue
+        visitados[actual[0], actual[1]] = True
+        
+        if actual == destino:
+            return camino, nodos_visitados_count  # <--- Retorna el contador
+
+        for vecino in vecinos_dict.get(actual, []):
+            if not visitados[vecino[0], vecino[1]]:
+                heappush(abiertos, (costo + 1, vecino, camino + [vecino]))
+    return None, nodos_visitados_count
+
+# --- Algoritmo A* ---
+def a_estrella(inicio, destino, filas, columnas, vecinos_dict):
+    def heuristica(a, b):
+        return abs(a[0] - b[0]) + abs(a[1] - b[1])
+    
+    abiertos = []
+    heappush(abiertos, (heuristica(inicio, destino), 0, inicio, [inicio]))
+    visitados = np.zeros((filas, columnas), dtype=bool)
+    nodos_visitados_count = 0  # <--- Contador
+    
+    while abiertos:
+        _, costo, actual, camino = heappop(abiertos)
+        nodos_visitados_count += 1  # <--- Incremento del contador
+        
+        if visitados[actual[0], actual[1]]:
+            continue
+        visitados[actual[0], actual[1]] = True
+
+        if actual == destino:
+            return camino, nodos_visitados_count  # <--- Retorna el contador
+        
+        for vecino in vecinos_dict.get(actual, []):
+            if not visitados[vecino[0], vecino[1]]:
+                nuevo_costo = costo + 1
+                prioridad = nuevo_costo + heuristica(vecino, destino)
+                heappush(abiertos, (prioridad, nuevo_costo, vecino, camino + [vecino]))
+    return None, nodos_visitados_count
+
+
+def graficar_camino_fast(matriz, camino, inicio, destino):
+    # Copia de la matriz para dibujar
+    plano = matriz.copy()
+
+    # Marcar camino, inicio y destino
+    for f, c in camino:
+        plano[f, c] = 2  # camino
+    plano[inicio[0], inicio[1]] = 3  # inicio
+    plano[destino[0], destino[1]] = 4  # destino
+
+    # Crear un mapa de colores
+    cmap = plt.cm.colors.ListedColormap(['black', 'white', 'lightblue', 'green', 'red'])
+    bounds = [-0.5, 0.5, 1.5, 2.5, 3.5, 4.5]
+    norm = plt.cm.colors.BoundaryNorm(bounds, cmap.N)
+
+    plt.figure(figsize=(10, 6))
+    plt.imshow(plano, cmap=cmap, norm=norm)
+    plt.title("Camino más corto por pasillos")
+    plt.xlabel("Columna")
+    plt.ylabel("Fila")
+    plt.grid(False)
+    plt.show()
+
+def probar_10_caminos(pasillos_set, matriz, filas, columnas, vecinos_dict, a_estrella, dijkstra):
+    pares = random.sample(list(pasillos_set), 20)
+    tiempos_a = []
+    tiempos_d = []
+    nodos_a = []  # <--- Lista para nodos de A*
+    nodos_d = []  # <--- Lista para nodos de Dijkstra
+
+    for i in range(0, 20, 2):
+        inicio = pares[i]
+        destino = pares[i+1]
+
+        t0 = time.perf_counter()
+        camino_a, nodos_a_count = a_estrella(inicio, destino, filas, columnas, vecinos_dict)
+        t1 = time.perf_counter()
+        tiempos_a.append(t1 - t0)
+        nodos_a.append(nodos_a_count)  # <--- Almacena el conteo
+        
+        t0 = time.perf_counter()
+        camino_d, nodos_d_count = dijkstra(inicio, destino, filas, columnas, vecinos_dict)
+        t1 = time.perf_counter()
+        tiempos_d.append(t1 - t0)
+        nodos_d.append(nodos_d_count)  # <--- Almacena el conteo
+
+        print(f"Camino {i//2 + 1}: A* {tiempos_a[-1]:.6f}s ({nodos_a[-1]} nodos), Dijkstra {tiempos_d[-1]:.6f}s ({nodos_d[-1]} nodos)")
+
+    prom_a = sum(tiempos_a) / len(tiempos_a)
+    prom_d = sum(tiempos_d) / len(tiempos_d)
+    mejora_tiempo = (prom_d - prom_a) / prom_d * 100
+    
+    prom_nodos_a = sum(nodos_a) / len(nodos_a)
+    prom_nodos_d = sum(nodos_d) / len(nodos_d)
+    mejora_nodos = (prom_nodos_d - prom_nodos_a) / prom_nodos_d * 100
+
+    print(f"\nPromedio A*: {prom_a:.6f} s ({prom_nodos_a:.2f} nodos)")
+    print(f"Promedio Dijkstra: {prom_d:.6f} s ({prom_nodos_d:.2f} nodos)")
+    print(f"A* fue {mejora_tiempo:.2f}% más rápido y exploró {mejora_nodos:.2f}% menos nodos.")
+    
+def graficar_comparacion(matriz, camino_a, camino_d, inicio, destino):
+    # Copia para dibujar
+    plano = matriz.copy()
+
+    # Colores: 0 = pared, 1 = pasillo
+    cmap = plt.cm.colors.ListedColormap(['black', 'white'])
+    bounds = [-0.5, 0.5, 1.5]
+    norm = plt.cm.colors.BoundaryNorm(bounds, cmap.N)
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.imshow(plano, cmap=cmap, norm=norm)
+    ax.invert_yaxis()
+
+    # Camino A* en rojo
+    coords_a = np.array(camino_a)
+    ax.plot(coords_a[:,1], coords_a[:,0], color='red', linewidth=2, label="Camino A*")
+
+    # Camino Dijkstra en azul
+    coords_d = np.array(camino_d)
+    ax.plot(coords_d[:,1], coords_d[:,0], color='blue', linestyle='--', linewidth=2, label="Camino Dijkstra")
+
+    # Marcar inicio y destino
+    ax.plot(inicio[1], inicio[0], marker='o', color='green', markersize=10, label="Inicio")
+    ax.plot(destino[1], destino[0], marker='X', color='orange', markersize=10, label="Destino")
+    ax.invert_yaxis()
+    ax.set_title("Comparación de caminos: A* vs Dijkstra")
+    ax.set_xlabel("Columna")
+    ax.set_ylabel("Fila")
+    ax.legend(loc="upper right")
+    ax.grid(False)
+    plt.show()
