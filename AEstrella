@@ -1,0 +1,47 @@
+from FuncionesDireccionamiento import *
+
+
+# --- Parámetros del plano ---
+filas = 50
+columnas = 65
+
+# --- Cargar pasillos ---
+pasillos = []
+with open("C:/Users\conim\OneDrive\Documentos\Tesis\pasillos.txt", "r") as f:
+    for linea in f:
+        fila, col = map(int, linea.strip().split(","))
+        pasillos.append((fila, col))
+
+# --- Crear matriz y set para acceso rápido ---
+matriz = np.zeros((filas, columnas), dtype=int)
+#Conjunto de todas las coordenadas por las que se puede caminar.
+pasillos_set = set(pasillos)
+for fila, col in pasillos:
+    if 0 <= fila < filas and 0 <= col < columnas:
+        matriz[fila, col] = 1
+
+# --- Precalcular vecinos ---
+vecinos_dict = {} #diccionario que, para cada celda transitable, guarda una lista de sus vecinos conectados.
+direcciones = [(-1,0),(1,0),(0,-1),(0,1)]  # 4 direcciones
+for fila, col in pasillos_set:
+    vecinos_validos = []
+    for df, dc in direcciones:
+        #Sumo df y dc para obtener la posición vecina (nf, nc).
+        #Si esa posición también es transitable (in pasillos_set), se agrega a la lista de vecinos válidos.
+        nf, nc = fila + df, col + dc
+        if (nf, nc) in pasillos_set:
+            vecinos_validos.append((nf, nc))
+    vecinos_dict[(fila, col)] = vecinos_validos
+
+
+# Prueba 10 caminos random y saca cuanto mejor es uno que otro
+probar_10_caminos(pasillos_set, matriz, filas, columnas, vecinos_dict, a_estrella, dijkstra)
+
+# Ejemplo de uso con cada algoritmo y grafico de los dos caminos juntos
+#inicio_coord = (15, 13)
+#destino_coord = (28, 54)
+
+#camino_a = a_estrella(inicio_coord, destino_coord, filas, columnas, vecinos_dict)
+#camino_d = dijkstra(inicio_coord, destino_coord, filas, columnas, vecinos_dict)
+#print(f"Camino mas corto: {camino_a}")
+#graficar_comparacion(matriz, camino_a, camino_d, inicio_coord, destino_coord)
