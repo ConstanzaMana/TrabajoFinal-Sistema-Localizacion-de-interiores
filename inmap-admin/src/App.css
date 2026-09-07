@@ -1,0 +1,56 @@
+/**
+ * Estilos base y animaciones de identidad visual.
+ */
+
+/* contenedor raíz que limita el ancho máximo y centra el contenido en pantalla */
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+/* configuración base para imágenes de logotipo*/
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+
+/* efecto de iluminación (drop-shadow) al interactuar con el puntero */
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+
+/* variante de color para el efecto de iluminación del logo*/
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
+}
+
+/* definición de la animación de rotación continua para elementos gráficos */
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* control de accesibilidad: activa la animación solo si el usuario no tiene restricciones de movimiento */
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+}
+
+/* espaciado interno para contenedores de tipo tarjeta */
+.card {
+  padding: 2em;
+}
+
+/* estilo tipográfico para textos de documentación o lectura secundaria */
+.read-the-docs {
+  color: #888;
+}
