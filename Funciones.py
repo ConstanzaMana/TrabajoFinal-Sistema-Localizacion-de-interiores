@@ -101,3 +101,27 @@ def ajustar_a_pasillo(posicion, pasillos):
     # Elegir el punto más cercano
     indice_mas_cercano = np.argmin(distancias)
     return tuple(pasillos[indice_mas_cercano])
+
+def estimar_posicion_wcl(balizas_reales, rssi_vals, b_ids, factor=20.0):
+    suma_pesos = 0
+    suma_x = 0
+    suma_y = 0
+    
+    for i in range(len(b_ids)):
+        id_baliza = b_ids[i]
+        rssi = rssi_vals[i]
+        x_b, y_b = balizas_reales[id_baliza]
+        
+        peso = pow(10, rssi / factor) 
+        
+        suma_x += x_b * peso
+        suma_y += y_b * peso
+        suma_pesos += peso
+        
+    if suma_pesos == 0:
+        return (0, 0)
+
+    x_wcl = suma_x / suma_pesos
+    y_wcl = suma_y / suma_pesos
+    
+    return (x_wcl, y_wcl)
