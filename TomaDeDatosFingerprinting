@@ -1,0 +1,229 @@
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:csv/csv.dart';
+import 'package:intl/intl.dart';
+import 'package:permission_handler/permission_handler.dart';
+
+/* Aplicacion para la recolección de datos (Fase Offline - Fingerprinting)
+para el Sistema de Localización en Interiores basado en BLE.
+Permite generar la base de datos de huellas de radio.
+- Renderiza un plano interactivo del establecimiento superpuesto con una matriz lógica.
+- Permite al operador seleccionar su coordenada física actual (Fila, Columna).
+- Ejecuta escaneos continuos de la banda BLE, capturando la intensidad de la señal (RSSI).
+- Exporta las lecturas a un archivo estructurado (.csv) que contiene la tupla
+{Fila, Columna, MAC, RSSI, Timestamp} para el posterior entrenamiento de algoritmos de estimación de posición. */
+void main() {
+  runApp(MaterialApp(home: BLEDataCollector()));
+}
+
+class BLEDataCollector extends StatefulWidget {
+  @override
+  _BLEDataCollectorState createState() => _BLEDataCollectorState();
+
+}
+
+
+class _BLEDataCollectorState extends State<BLEDataCollector> {
+  int? selectedRow;
+  int? selectedCol;
+  List<List<dynamic>> lecturas = [
+    ['Fila', 'Columna', 'MAC', 'RSSI', 'Timestamp']
+  ];
+  String? archivoFinal;
+
+  @override
+  void initState() {
+    super.initState();
+    solicitarPermisos();
+  }
+
+  Future<void> solicitarPermisos() async {
+    await [
+      Permission.bluetooth,
+      Permission.bluetoothScan,
+      Permission.bluetoothConnect,
+      Permission.location,
+      Permission.storage,
+    ].request();
+
+    if (await Permission.location.isDenied) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('El permiso de ubicación es necesario para escanear BLE')),
+      );
+    }
+  }
+
+  Future<void> escanearBLE() async {
+    if (selectedRow == null || selectedCol == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Seleccioná una posición primero')),
+      );
+      return;
+    }
+
+    await FlutterBluePlus.startScan(timeout: Duration(seconds: 4));
+
+    FlutterBluePlus.scanResults.listen((results) async {
+      for (var r in results) {
+        String mac = r.device.remoteId.str;
+        int rssi = r.rssi;
+        String timestamp = DateFormat('HH:mm:ss').format(DateTime.now());
+
+        setState(() {
+          lecturas.add([
+            selectedRow,
+            selectedCol,
+            mac,
+            rssi,
+            timestamp,
+          ]);
+        });
+      }
+    });
+
+    await Future.delayed(Duration(seconds: 4));
+    await FlutterBluePlus.stopScan();
+
+    guardarCSV();
+  }
+
+  Future<void> guardarCSV() async {
+    final now = DateTime.now();
+    final formatter = DateFormat('dd-MM_HHmm');
+    final fileName = 'lecturas_ble_${formatter.format(now)}.csv';
+
+
+    final directory = Directory('/storage/emulated/0/Download');
+    await Permission.manageExternalStorage.request();
+
+    final path = '${directory!.path}/$fileName';
+    final file = File(path);
+
+    String csvData = const ListToCsvConverter().convert(lecturas);
+    await file.writeAsString(csvData);
+
+    setState(() {
+      archivoFinal = path;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Archivo guardado: $fileName')),
+    );
+  }
+
+  Widget buildPlanoConGrilla() {
+    int filas = 30;
+    int columnas = 40;
+    double tamanioCelda = 40;
+
+    return InteractiveViewer(
+      minScale: 0.5,
+      maxScale: 5,
+      child: Stack(
+      children: [
+      // Imagen de fondo
+      Image.asset(
+        'assets/Plano.png',
+      fit: BoxFit.cover,
+      ),
+
+    // Cuadrícula encima
+    Positioned.fill(
+    child: SingleChildScrollView(
+    scrollDirection: Axis.vertical,
+    child: SingleChildScrollView(
+    scrollDirection: Axis.horizontal,
+    child: Column(
+    children: List.generate(filas, (fila) {
+    return Row(
+    children: List.generate(columnas, (col) {
+    bool isSelected = selectedRow == fila && selectedCol == col;
+    return GestureDetector(
+    onTap: () {
+    setState(() {
+    selectedRow = fila;
+    selectedCol = col;
+    });
+    },
+    child: Container(
+    width: tamanioCelda,
+    height: tamanioCelda,
+    decoration: BoxDecoration(
+    border: Border.all(color: Colors.black26, width: 0.5),
+    color: isSelected ? Colors.green.withOpacity(0.5) : Colors.transparent,
+    ),
+    child: Center(
+    child: Text('$fila,$col', style: TextStyle(fontSize: 8)),
+    ),
+    ),
+    );
+    }),
+    );
+    }),
+    ),
+    ),
+    ),
+    ),
+    ],
+    ),
+    );
+  }
+
+
+
+  Widget buildListaLecturas() {
+    return Expanded(
+      child: ListView.builder(
+        itemCount: lecturas.length - 1,
+        itemBuilder: (context, index) {
+          final item = lecturas[index + 1];
+          return ListTile(
+            title: Text('(${item[0]},${item[1]}) - ${item[2]}'),
+            subtitle: Text('RSSI: ${item[3]} | ${item[4]}'),
+          );
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Captura de RSSI por posición'),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.download),
+            onPressed: archivoFinal != null
+                ? () => ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Archivo en: $archivoFinal')),
+            )
+                : null,
+          )
+        ],
+      ),
+      body: Column(
+        children: [
+          Expanded(child: buildPlanoConGrilla()),
+          ElevatedButton.icon(
+            icon: Icon(Icons.wifi),
+            label: Text('Escanear Beacons BLE'),
+            onPressed: escanearBLE,
+          ),
+          SizedBox(height: 10),
+          Text(
+            selectedRow != null
+                ? 'Posición seleccionada: ($selectedRow, $selectedCol)'
+                : 'Tocá una celda para elegir posición',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          Divider(),
+          Text('Lecturas recientes:'),
+          buildListaLecturas(),
+        ],
+      ),
+    );
+  }
+}
+
