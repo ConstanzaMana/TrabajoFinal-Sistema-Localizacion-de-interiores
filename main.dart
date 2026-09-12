@@ -59,7 +59,7 @@ class _BLEDataCollectorState extends State<BLEDataCollector> {
 
     if (await Permission.location.isDenied) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('⚠️ El permiso de ubicación es necesario para escanear BLE')),
+        SnackBar(content: Text('El permiso de ubicación es necesario para escanear BLE')),
       );
     }
   }
@@ -154,10 +154,10 @@ class _BLEDataCollectorState extends State<BLEDataCollector> {
       archivoFinal = path;
     });
 
-    print('✅ Archivo guardado en: $path');
+    print('Archivo guardado en: $path');
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('✅ Archivo actualizado:\n$path')),
+      SnackBar(content: Text('Archivo actualizado:\n$path')),
     );
 
     // Limpiar las lecturas para no volver a escribir lo mismo
@@ -171,7 +171,7 @@ class _BLEDataCollectorState extends State<BLEDataCollector> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('📶 Captura de RSSI por posición'),
+        title: Text('Captura de RSSI por posición'),
         actions: [
           if (archivoFinal != null)
             IconButton(
@@ -206,8 +206,8 @@ class _BLEDataCollectorState extends State<BLEDataCollector> {
                 SizedBox(height: 10),
                 Text(
                   selectedRow != null
-                      ? '📍 Posición seleccionada: ($selectedRow, $selectedCol)'
-                      : '🟨 Tocá una celda para elegir posición',
+                      ? 'Posición seleccionada: ($selectedRow, $selectedCol)'
+                      : 'Tocá una celda para elegir posición',
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
               ],
@@ -228,7 +228,7 @@ class _BLEDataCollectorState extends State<BLEDataCollector> {
               padding: const EdgeInsets.all(8.0),
               child: Column(
                 children: [
-                  Text('📋 Lecturas recientes:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text('Lecturas recientes:', style: TextStyle(fontWeight: FontWeight.bold)),
                   SizedBox(height: 10),
                   Expanded(
                     child: buildListaLecturas(),
